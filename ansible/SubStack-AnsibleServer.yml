@@ -1,0 +1,195 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: A single ansible server to configure a network
+Parameters:
+  ProjectBucket:
+    Description: The name of a S3 Bucket where the files for this project resides
+    Type: String
+    AllowedPattern: '\S+'
+    ConstraintDescription: Must be a valid S3 Bucket Name
+  Subnets:
+    Description: Subnets the ansible server instance can be spawned in.
+    Type: List<AWS::EC2::Subnet::Id>
+  SecurityGroups:
+    Description: Security Group IDs of the groups, the ansible server should be a member of.
+    Type: List<AWS::EC2::SecurityGroup::Id>
+  SSHKey:
+    Description: A predefined EC2 Key Pair that can be used to access the ansible server.
+    Type: AWS::EC2::KeyPair::KeyName
+  AnsibleVarsFile:
+    Description: A multiline String that will be passed on as vars_file to the ansible server
+    Type: String
+Mappings:
+  AWSRegionArch2AMI:
+    eu-west-1: { image: ami-ebd02392 }
+Resources:
+  AnsibleServerIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - s3:GetObject
+                Resource:
+                  - !Sub arn:aws:s3:::${ProjectBucket}/GitAccess.sec
+                  - !Sub arn:aws:s3:::${ProjectBucket}/AnsibleMgmt.sec
+                Effect: Allow
+          PolicyName: ansible-access-s3-policy
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - ec2:Describe*
+                  - route53:ListHostedZones
+                  - route53:ListResourceRecordSets
+                  - rds:Describe*
+                  - elasticache:Describe*
+                Resource:
+                  - '*'
+                Effect: Allow
+          PolicyName: ansible-dynamic-inventory-policy
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Effect: Allow
+        Version: 2012-10-17
+  AnsibleServerIAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref AnsibleServerIAMRole
+      Path: /
+  AnsibleServerAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier: !Ref Subnets
+      LaunchConfigurationName: !Ref AnsibleServerLaunchConf
+      MinSize: 1
+      MaxSize: 2
+      DesiredCapacity: 1
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 2
+        MinInstancesInService: 0
+        PauseTime: PT10M
+        WaitOnResourceSignals: true
+  AnsibleServerLaunchConf:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    Metadata:
+      AWS::CloudFormation::Authentication:
+        SSHSecretKeys:
+          type: S3
+          buckets:
+            - !Ref ProjectBucket
+          roleName: !Ref AnsibleServerIAMRole
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              git: ''
+              gcc: ''
+              libffi-devel: ''
+          files:
+            /home/ec2-user/aws_cloudformation.yml:
+              content: !Ref AnsibleVarsFile
+              owner: ec2-user
+              group: ec2-user
+              mode: '000444'
+            /home/ec2-user/git-access.sec:
+              source: !Sub https://${ProjectBucket}.s3.amazonaws.com/GitAccess.sec
+              owner: ec2-user
+              group: ec2-user
+              mode: '000400'
+              authentication: SSHSecretKeys
+            /home/ec2-user/ansible-mgmt.sec:
+              source: !Sub https://${ProjectBucket}.s3.amazonaws.com/AnsibleMgmt.sec
+              owner: ec2-user
+              group: ec2-user
+              mode: '000400'
+              authentication: SSHSecretKeys
+            /home/ec2-user/.ssh/config:
+              content: |
+                host git.rwth-aachen.de
+                  HostName git.rwth-aachen.de
+                  IdentityFile ~/git-access.sec
+                  User git 
+              owner: ec2-user
+              group: ec2-user
+              mode: '000400'
+            /etc/cron.d/ansible-server:
+              content: |
+                SHELL=/bin/bash
+                PATH=/usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/aws/bin
+                #m   h dom mon dow user     command
+                18 */6   *   *   * ec2-user cd /home/ec2-user/ansible && ansible-playbook site.yml
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackName}
+                region=${AWS::Region}
+                interval=1
+              owner: root
+              group: root
+              mode: '000400'
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.AnsibleServerLaunchConf.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AnsibleServerLaunchConf --region ${AWS::Region}
+                runas=root
+              owner: root
+              group: root
+              mode: '000400'
+          commands:
+            git-clone:
+              command: git clone git@git.rwth-aachen.de:gbueckendorf/ansible-aws.git /home/ec2-user/ansible
+              env:
+                GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no -i /home/ec2-user/git-access.sec
+              test: test ! -d /home/ec2-user/ansible
+            git-owner:
+              command: chown -R ec2-user:ec2-user /home/ec2-user/ansible
+            install-ansible:
+              command: pip install ansible
+              env: 
+                PATH: /usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/aws/bin
+              test: test ! $(which ansible >> /dev/null)
+            run-site-playbook:
+              command: ansible-playbook site.yml
+              cwd: /home/ec2-user/ansible
+              env: 
+                PATH: /usr/local/bin:/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/sbin:/opt/aws/bin
+              ignoreErrors: true
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files: 
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref 'AWS::Region', image ]
+      InstanceType: t2.micro
+      SecurityGroups: !Ref SecurityGroups
+      KeyName: !Ref SSHKey
+      IamInstanceProfile: !Ref AnsibleServerIAMInstanceProfile
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap
+            pip install --upgrade pip
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource AnsibleServerLaunchConf --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource AnsibleServerAutoScalingGroup --region ${AWS::Region}

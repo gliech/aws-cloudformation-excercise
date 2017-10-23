@@ -1,0 +1,38 @@
+[
+    {
+        "ParameterKey": "ProjectBucket",
+        "ParameterValue": "wp-cbc-cloudformation" 
+    },
+    {
+        "ParameterKey": "SSHKeyAnsible",
+        "ParameterValue": "AnsibleMgmt" 
+    },
+    {
+        "ParameterKey": "SSHRange",
+        "ParameterValue": "193.16.160.0/21"
+    },
+    {
+        "ParameterKey": "HTTPRange",
+        "ParameterValue": "193.16.160.0/21"
+    },
+    {
+        "ParameterKey": "HTTPPort",
+        "ParameterValue": "80"
+    },
+    {
+        "ParameterKey": "InstanceNum",
+        "ParameterValue": "2"
+    },
+    {
+        "ParameterKey": "DBName",
+        "ParameterValue": "wordpressdb"
+    },
+    {
+        "ParameterKey": "DBUser",
+        "ParameterValue": "wordpressuser"
+    },
+    {
+        "ParameterKey": "DBPass",
+        "ParameterValue": "SecretPassword"
+    }
+]
