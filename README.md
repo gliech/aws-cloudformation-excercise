@@ -11,13 +11,13 @@ loadbalancer, RDS as database solution and a bastion host for SSH access. All
 configuration management is done using cfn-helper scripts.
 
 ### ansible
-Contains two templates. First a main stack, that is very similar to the last
-template from the cfn-init directory, but with the configuration sections
-removed. Secondly a stack that installs an Ansible server into an existing
-network, and is used as nested stack in the first template. This project needs
-a view external dependencies to run:
+Contains two templates. First a main stack, very similar to the last template
+from the cfn-init directory, but with the configuration sections removed.
+Secondly a stack that installs an Ansible server into an existing network, and
+is used as nested stack in the first template. This project needs a view
+external dependencies to run:
 1. A git repository containing an Ansible project with a site.yml playbook in its root directory
-2. An Amazon S3 Bucket Containing the following files
+2. An Amazon S3 Bucket containing the following files
     - **SubStack-AnsibleServer.yml** The template for the nested stack
     - **GitAccess.sec** An SSH private key used to fetch the contents of the git repository
     - **AnsibleMgmt.sec** An SSH private key that Ansible can use to connect to the other hosts in the stack

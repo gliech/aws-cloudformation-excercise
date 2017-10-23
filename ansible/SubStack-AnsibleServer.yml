@@ -19,6 +19,11 @@ Parameters:
   AnsibleVarsFile:
     Description: A multiline String that will be passed on as vars_file to the ansible server
     Type: String
+  GitURL:
+    Description: SSH URL to a git repository
+    Type: String
+    AllowedPattern: '\S+@\S+:\S+.git'
+    ConstraintDescription: Only allows SSH-style URLs in the form of user@git-server.com:path/to.git
 Mappings:
   AWSRegionArch2AMI:
     eu-west-1: { image: ami-ebd02392 }
@@ -119,11 +124,14 @@ Resources:
               mode: '000400'
               authentication: SSHSecretKeys
             /home/ec2-user/.ssh/config:
-              content: |
-                host git.rwth-aachen.de
-                  HostName git.rwth-aachen.de
-                  IdentityFile ~/git-access.sec
-                  User git 
+              content: !Sub 
+                - |
+                  host ${GitHost}
+                    HostName ${GitHost}
+                    IdentityFile ~/git-access.sec
+                    User ${GitUser}
+                - GitUser: !Select [0, !Split ['@', !Select [0, !Split [':', !Ref GitURL]]]]
+                - GitHost: !Select [1, !Split ['@', !Select [0, !Split [':', !Ref GitURL]]]]
               owner: ec2-user
               group: ec2-user
               mode: '000400'
@@ -154,7 +162,7 @@ Resources:
               mode: '000400'
           commands:
             git-clone:
-              command: git clone git@git.rwth-aachen.de:gbueckendorf/ansible-aws.git /home/ec2-user/ansible
+              command: !Sub git clone ${GitURL} /home/ec2-user/ansible
               env:
                 GIT_SSH_COMMAND: ssh -o StrictHostKeyChecking=no -i /home/ec2-user/git-access.sec
               test: test ! -d /home/ec2-user/ansible

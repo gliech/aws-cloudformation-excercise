@@ -498,6 +498,7 @@ Resources:
             - !Ref WPSecgrpAnsibleManaged
             - !Ref WPSecgrpBastionAccessible
         SSHKey: !Ref SSHKeyAnsible
+        GitURL: 'git@github.com:gliech/aws-cloudformation-ansible.git'
         AnsibleVarsFile: !Sub |
           ---
           aws_mgmt_stack: ${AWS::StackName}
