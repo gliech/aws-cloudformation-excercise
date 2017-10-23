@@ -1,0 +1,209 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Application Loadbalancer Teststack
+Parameters:
+  SSHKey:
+    Description: A predefined EC2 Key Pair that can be used to access instances in this stack.
+    Type: AWS::EC2::KeyPair::KeyName
+  SSHSource:
+    Description: A range of IP addresses that is allowed to SSH onto the instances in this stack.
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: SSH Configuration }
+        Parameters:
+          - SSHKey
+          - SSHSource
+    ParameterLabels:
+      SSHKey:  { default: EC2 Key Pair }
+      SSHSource:  { default: Allowed Range }
+Mappings:
+  AWSRegionArch2AMI:
+    eu-west-1: { image: ami-ebd02392 }     
+Resources:
+  WPNetwork:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+  WPSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+  WPSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+  WPGateway:
+    Type: AWS::EC2::InternetGateway
+  WPGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WPNetwork
+      InternetGatewayId: !Ref WPGateway
+  WPRoutetable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: WPGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref WPGateway
+  WPRoutetableAttach1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnet1
+      RouteTableId: !Ref WPRoutetable
+  WPRoutetableAttach2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnet2
+      RouteTableId: !Ref WPRoutetable
+  WPSecgrpInstance:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Quick Rule for servers
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref WPSecgrpLoadbalancer
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref SSHSource
+  WPSecgrpLoadbalancer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Quick Rule for loadbalancers
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+  WPLoadbalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref WPSubnet1
+        - !Ref WPSubnet2
+      SecurityGroups:
+        - !Ref WPSecgrpLoadbalancer
+  WPLoadbalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WPLoadbalancer
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WPLoadbalancerTarget
+  WPLoadbalancerTarget:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      VpcId: !Ref WPNetwork
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 45
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Port: 80
+      Protocol: HTTP
+      HealthCheckPath: /index.php
+  WPInstance1:
+    Type: AWS::EC2::Instance
+    DependsOn: WPGatewayAttach
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd24: ''
+              php70: ''
+          files:
+            /var/www/html/index.php:
+              content: '<?php phpinfo(); ?>'
+              owner: apache
+              group: apache
+              mode: 0644
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+    Properties:
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref 'AWS::Region', image ]
+      InstanceType: t2.micro
+      SubnetId: !Ref WPSubnet1
+      SecurityGroupIds:
+        - !Ref WPSecgrpInstance
+      KeyName: !Ref SSHKey
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap
+            touch /home/ec2-user/testfile
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPInstance1 --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WPInstance1 --region ${AWS::Region}
+  WPInstance2:
+    Type: AWS::EC2::Instance
+    DependsOn: WPGatewayAttach
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd24: ''
+              php70: ''
+          files:
+            /var/www/html/index.php:
+              content: '<?php phpinfo(); ?>'
+              owner: apache
+              group: apache
+              mode: 0644
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+    Properties:
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref 'AWS::Region', image ]
+      InstanceType: t2.micro
+      SubnetId: !Ref WPSubnet1
+      SecurityGroupIds:
+        - !Ref WPSecgrpInstance
+      KeyName: !Ref SSHKey
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap
+            touch /home/ec2-user/testfile
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPInstance2 --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WPInstance2 --region ${AWS::Region}
+Outputs:
+  Instance1IP:
+    Value: !GetAtt WPInstance1.PublicIp
+  Instance2IP:
+    Value: !GetAtt WPInstance2.PublicIp
+  LoadbalancerDN:
+    Value: !GetAtt WPLoadbalancer.DNSName

@@ -1,0 +1,583 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Bastion Host Teststack
+Parameters:
+  SSHKey:
+    Description: A predefined EC2 Key Pair that can be used to access instances on this stack.
+    Type: AWS::EC2::KeyPair::KeyName
+  SSHRange:
+    Description: A range of IP addresses that is allowed to SSH into the instances on this stack.
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  SSHPort:
+    Description: The TCP port used to serve SSH to the range of IP addresses specified.
+    Type: Number
+    Default: 22
+    MinValue: 1
+    MaxValue: 65535
+    ConstraintDescription: Must be a valid TCP port number ( 1 - 65535 )
+  BastionEIP:
+    Description: AllocationID of an existing Elastic IP that will be bound to the bastion host.
+    Type: String
+    Default: ''
+    AllowedPattern: '^$|eipalloc-\w+'
+    ConstraintDescription: Must be a valid Elastic IP AllocationID or empty
+  HTTPRange:
+    Description: A range of IP addresses that is allowed to use the main HTTP service.
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  HTTPPort:
+    Description: The TCP port used to serve the main HTTP service.
+    Type: Number
+    Default: 80
+    MinValue: 1
+    MaxValue: 65535
+    ConstraintDescription: Must be a valid TCP port number ( 1 - 65535 )
+  InstanceNum:
+    Description: Number of instances in the Auto Scaling Group
+    Type: Number
+    Default: 2
+    MinValue: 1
+    MaxValue: 5
+    ConstraintDescription: Number of instances must be within the constraints set in the Auto Scaling Group
+  DBName:
+    Description: Name of the Database
+    Type: String
+    Default: wordpressdb
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 64 letters or numbers
+  DBUser:
+    Description: Database admin account name
+    Type: String
+    Default: wordpressuser
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 16 letters or numbers
+  DBPass:
+    Description: Database admin password
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: Webserver Configuration }
+        Parameters:
+          - InstanceNum
+          - HTTPRange
+          - HTTPPort
+      - Label: { default: Bastion Host Configuration }
+        Parameters:
+          - SSHKey
+          - BastionEIP
+          - SSHRange
+          - SSHPort
+      - Label: { default: Database Configuration }
+        Parameters:
+          - DBName
+          - DBUser
+          - DBPass
+    ParameterLabels:
+      SSHKey:  { default: EC2 Key Pair for SSH }
+      SSHRange:  { default: Allowed IP Range for SSH }
+      SSHPort: { default: SSH Port }
+      BastionEIP: { default: SSH Elastic IP (optional) }
+      InstanceNum: { default: Number of Instances }
+      DBName: { default: Database Name }
+      DBUser: { default: Database User Name }
+      DBPass: { default: Database User Password }
+      HTTPRange: { default: Allowed IP Range for the Webserver }
+      HTTPPort: { default:  Webserver Port }
+Mappings:
+  AWSRegionArch2AMI:
+    eu-west-1: { image: ami-ebd02392 }
+Conditions:
+  NewBastionEIP: !Equals [ !Ref BastionEIP, '' ]
+Resources:
+  WPNetwork:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+  WPSubnetPrivate1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref WPNetwork
+  WPSubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref WPNetwork
+  WPSubnetPublic1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+  WPSubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.4.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+
+  WPInternetGateway:
+    Type: AWS::EC2::InternetGateway
+  WPInternetGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WPNetwork
+      InternetGatewayId: !Ref WPInternetGateway
+
+  WPElasticIPNatGateway1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  WPNatGateway1:
+    Type: AWS::EC2::NatGateway
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt WPElasticIPNatGateway1.AllocationId
+      SubnetId: !Ref WPSubnetPublic1
+
+  WPElasticIPNatGateway2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  WPNatGateway2:
+    Type: AWS::EC2::NatGateway
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt WPElasticIPNatGateway2.AllocationId
+      SubnetId: !Ref WPSubnetPublic2
+
+  WPRoutetablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePublic:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref WPInternetGateway
+  WPRoutetablePublicAttach1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPublic1
+      RouteTableId: !Ref WPRoutetablePublic
+  WPRoutetablePublicAttach2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPublic2
+      RouteTableId: !Ref WPRoutetablePublic
+
+  WPRoutetablePrivate1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePrivate1:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePrivate1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref WPNatGateway1
+  WPRoutetablePrivate1Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPrivate1
+      RouteTableId: !Ref WPRoutetablePrivate1
+
+  WPRoutetablePrivate2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePrivate2:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePrivate2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref WPNatGateway2
+  WPRoutetablePrivate2Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPrivate2
+      RouteTableId: !Ref WPRoutetablePrivate2
+
+  WPSecgrpWebServer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access from the loadbalancer and SSH from the bastion host
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref HTTPPort
+          ToPort: !Ref HTTPPort
+          SourceSecurityGroupId: !Ref WPSecgrpLoadBalancer
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref WPSecgrpBastion
+  WPSecgrpLoadBalancer:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow HTTP access to the loadbalancer
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref HTTPPort
+          ToPort: !Ref HTTPPort
+          CidrIp: !Ref HTTPRange
+  WPSecgrpDatabase:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SQL access from webservers
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref WPSecgrpWebServer
+  WPSecgrpBastion:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SSH access to the bastion host
+      VpcId: !Ref WPNetwork
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: !Ref SSHPort
+          ToPort: !Ref SSHPort
+          CidrIp: !Ref SSHRange
+
+  WPDataBase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 5
+      DBInstanceClass: db.t2.micro
+      Engine: mariadb
+      EngineVersion: 10.1.23
+      PubliclyAccessible: false
+      DBName: !Ref DBName
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPass
+      DBSubnetGroupName: !Ref WPDBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref WPSecgrpDatabase
+  WPDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: All Subnets (mandatory descripition, wow)
+      SubnetIds:
+        - !Ref WPSubnetPrivate1
+        - !Ref WPSubnetPrivate2
+
+  WPLoadBalancer:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Type: application
+      Scheme: internet-facing
+      Subnets:
+        - !Ref WPSubnetPublic1
+        - !Ref WPSubnetPublic2
+      SecurityGroups:
+        - !Ref WPSecgrpLoadBalancer
+  WPLoadBalancerListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref WPLoadBalancer
+      Port: !Ref HTTPPort
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref WPLoadBalancerTarget
+  WPLoadBalancerTarget:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      VpcId: !Ref WPNetwork
+      HealthCheckIntervalSeconds: 60
+      HealthCheckTimeoutSeconds: 45
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Port: !Ref HTTPPort
+      Protocol: HTTP
+      HealthCheckPath: /wordpress/
+      Matcher:
+        HttpCode: 200,302
+
+  WPWebAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref WPSubnetPrivate1
+        - !Ref WPSubnetPrivate2
+      LaunchConfigurationName: !Ref WPWebLaunchConf
+      MinSize: 1
+      MaxSize: 5
+      DesiredCapacity: !Ref InstanceNum
+      TargetGroupARNs:
+        - !Ref WPLoadBalancerTarget
+    CreationPolicy:
+      ResourceSignal:
+        Count: !Ref InstanceNum
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 2
+        MinInstancesInService: 1
+        PauseTime: PT10M
+        WaitOnResourceSignals: true
+  WPWebLaunchConf:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn: WPInternetGatewayAttach
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            yum:
+              httpd24: ''
+              php70: ''
+              mysql56-server: ''
+              php70-mysqlnd: ''
+          sources:
+            /var/www/html: https://wordpress.org/latest.tar.gz
+          files:
+            /var/www/html/wordpress/wp-config.php:
+              content: !Sub |
+                <?php
+                define('DB_NAME', '${DBName}');
+                define('DB_USER', '${DBUser}');
+                define('DB_PASSWORD', '${DBPass}');
+                define('DB_HOST', '${WPDataBase.Endpoint.Address}:${WPDataBase.Endpoint.Port}');
+                define('DB_CHARSET', 'utf8');
+                define('DB_COLLATE', '');
+                define('AUTH_KEY',         'z= mS!fBTh^xcl=0ulD3MVKmg&#T`LF18%TWN9_$1tH|Ev`JN>Qw9bTBc!c9JJ,0');
+                define('SECURE_AUTH_KEY',  '92L)r-^i[zY %:qX`bj|:(.7jtb>?ATf!P6aAcXrf ?jI.4Q+aC:nJm@qU-|4~|C');
+                define('LOGGED_IN_KEY',    'D33 /Se0RK+&,Fg|==. <N`]{mxV:rNSLF%Ny(r?/lUQ%Yv/y)r+)i`%jb^LkE(b');
+                define('NONCE_KEY',        'x)_7Lnv2_wD^8{6RZeGrWSZAeIx`2$D|Ol9p!KIrUQIc4:DUGIb$axmw>obZ@Hwj');
+                define('AUTH_SALT',        'q$$A  DN6tFsCa.]C^a3?Lilg+ko/pQ3D|QrDGO!n}{E#|_$M6-S+GrHufX9D;V@');
+                define('SECURE_AUTH_SALT', '6D:L+IhF|z-SnVpaRFj <=QgQ|c; ysS-r^w4Zaei$Xw|JYjUvR+K[E8:!`v9(8:');
+                define('LOGGED_IN_SALT',   'J)>kTI|N<T2|8)b%ml4=#3Y.6S;/:;:7qUUm3::r%xAM~wj-<.r3{)+bc!lpb^~%');
+                define('NONCE_SALT',       '$1g#9Qwm<9dj;>ZL5F57|$R/F83nA8ioc/4uvJFD/t(QTVl<-`ADFvo=-/~B3e.!');
+                $table_prefix  = 'wp_';
+                define('WP_DEBUG', false);
+                if ( !defined('ABSPATH') )
+                    define('ABSPATH', dirname(__FILE__) . '/');
+                require_once(ABSPATH . 'wp-settings.php');
+              owner: apache
+              group: apache
+              mode: 0644
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackName}
+                region=${AWS::Region}
+                interval=1
+              owner: root
+              group: root
+              mode: 0400
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WPWebLaunchConf.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPWebLaunchConf --region ${AWS::Region}
+                runas=root
+              owner: root
+              group: root
+              mode: 0400
+          commands:
+            set-http-port:
+              command: !Sub sed -i.bak -e 's/^Listen [0-9]*/Listen ${HTTPPort}/' /etc/httpd/conf/httpd.conf
+          services:
+            sysvinit:
+              httpd:
+                enabled: true
+                ensureRunning: true
+              commands:
+                - listening-port
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+    Properties:
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref 'AWS::Region', image ]
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref WPSecgrpWebServer
+      KeyName: !Ref SSHKey
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPWebLaunchConf --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WPWebAutoScalingGroup --region ${AWS::Region}
+
+  WPBastionIAMRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Policies:
+        - PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Action:
+                  - ec2:AssociateAddress
+                  - ec2:DescribeAddresses
+                Resource:
+                  - '*'
+                Effect: Allow
+          PolicyName: bastion-eip-policy
+      Path: /
+      AssumeRolePolicyDocument:
+        Statement:
+          - Action:
+              - sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+            Effect: Allow
+        Version: 2012-10-17
+  WPBastionIAMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref WPBastionIAMRole
+      Path: /
+  WPBastionAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      VPCZoneIdentifier:
+        - !Ref WPSubnetPublic1
+        - !Ref WPSubnetPublic2
+      LaunchConfigurationName: !Ref WPBastionLaunchConf
+      MinSize: 1
+      MaxSize: 2
+      DesiredCapacity: 1
+    CreationPolicy:
+      ResourceSignal:
+        Count: 1
+        Timeout: PT10M
+    UpdatePolicy:
+      AutoScalingRollingUpdate:
+        MaxBatchSize: 2
+        MinInstancesInService: 0
+        PauseTime: PT10M
+        WaitOnResourceSignals: true
+  WPElasticIPBastion:
+    Type: AWS::EC2::EIP
+    Condition: NewBastionEIP
+    Properties:
+      Domain: vpc
+  WPBastionLaunchConf:
+    Type: AWS::AutoScaling::LaunchConfiguration
+    DependsOn: WPInternetGatewayAttach
+    Metadata:
+      AWS::CloudFormation::Init:
+        config:
+          packages:
+            python:
+              awscli: ''
+          files:
+            /etc/cfn/cfn-hup.conf:
+              content: !Sub |
+                [main]
+                stack=${AWS::StackName}
+                region=${AWS::Region}
+                interval=1
+              owner: root
+              group: root
+              mode: 0400
+            /etc/cfn/hooks.d/cfn-auto-reloader.conf:
+              content: !Sub |
+                [cfn-auto-reloader-hook]
+                triggers=post.update
+                path=Resources.WPBastionLaunchConf.Metadata.AWS::CloudFormation::Init
+                action=/opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPBastionLaunchConf --region ${AWS::Region}
+                runas=root
+              owner: root
+              group: root
+              mode: 0400
+            /etc/ssh/sshd_config:
+              content: !Sub |
+                Port ${SSHPort}
+                HostKey /etc/ssh/ssh_host_rsa_key
+                HostKey /etc/ssh/ssh_host_ecdsa_key
+                HostKey /etc/ssh/ssh_host_ed25519_key
+                SyslogFacility AUTHPRIV
+                PermitRootLogin forced-commands-only
+                AuthorizedKeysFile .ssh/authorized_keys
+                PasswordAuthentication no
+                ChallengeResponseAuthentication no
+                UsePAM yes
+                X11Forwarding yes
+                AllowAgentForwarding yes
+                PrintLastLog yes
+                UsePrivilegeSeparation sandbox
+                AcceptEnv LANG LC_CTYPE LC_NUMERIC LC_TIME LC_COLLATE LC_MONETARY LC_MESSAGES
+                AcceptEnv LC_PAPER LC_NAME LC_ADDRESS LC_TELEPHONE LC_MEASUREMENT
+                AcceptEnv LC_IDENTIFICATION LC_ALL LANGUAGE
+                AcceptEnv XMODIFIERS
+                Subsystem sftp  /usr/libexec/openssh/sftp-server
+              owner: root
+              group: root
+              mode: 0644
+          commands:
+            assign-eip:
+              command: !Sub
+                - aws ec2 associate-address --instance-id $(curl -s http://169.254.169.254/latest/meta-data/instance-id) --allocation-id ${AllocationID} --region ${AWS::Region}
+                - { AllocationID: !If [ NewBastionEIP, !GetAtt WPElasticIPBastion.AllocationId, !Ref BastionEIP ] }
+          services:
+            sysvinit:
+              cfn-hup:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/cfn/cfn-hup.conf
+                  - /etc/cfn/hooks.d/cfn-auto-reloader.conf
+              sshd:
+                enabled: true
+                ensureRunning: true
+                files:
+                  - /etc/ssh/sshd_config
+    Properties:
+      ImageId: !FindInMap [ AWSRegionArch2AMI, !Ref 'AWS::Region', image ]
+      InstanceType: t2.micro
+      SecurityGroups:
+        - !Ref WPSecgrpBastion
+      KeyName: !Ref SSHKey
+      IamInstanceProfile: !Ref WPBastionIAMInstanceProfile
+      UserData:
+        Fn::Base64:
+          !Sub |
+            #!/bin/bash -xe
+            yum update -y aws-cfn-bootstrap
+            /opt/aws/bin/cfn-init -v --stack ${AWS::StackName} --resource WPBastionLaunchConf --region ${AWS::Region}
+            /opt/aws/bin/cfn-signal -e $? --stack ${AWS::StackName} --resource WPBastionAutoScalingGroup --region ${AWS::Region}
+Outputs:
+  WebLoadBalancerDN:
+    Value: !Join ["", [!GetAtt WPLoadBalancer.DNSName, ':', !Ref HTTPPort, '/wordpress/' ]]
+  BastionHostIP:
+    Value: !If [ NewBastionEIP, !Ref WPElasticIPBastion, 'preallocated' ]
