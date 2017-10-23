@@ -18,6 +18,6 @@ network, and is used as nested stack in the first template. This project needs
 a view external dependencies to run:
 1. A git repository containing an Ansible project with a site.yml playbook in its root directory
 2. An Amazon S3 Bucket Containing the following files
-  - SubStack-AnsibleServer.yml: the Ansible server template
-  - GitAccess.sec: An SSH private key used to fetch the contents of the git repository
-  - AnsibleMgmt.sec: An SSH private key that Ansible can use to connect to the other hosts in the stack
+    - **SubStack-AnsibleServer.yml** The template for the nested stack
+    - **GitAccess.sec** An SSH private key used to fetch the contents of the git repository
+    - **AnsibleMgmt.sec** An SSH private key that Ansible can use to connect to the other hosts in the stack
