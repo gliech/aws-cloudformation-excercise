@@ -1,0 +1,51 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Wordpress Installation in einem Teststack
+
+Parameters:
+  ProjectBucket:
+    Description: The name of a S3 Bucket where the files for this project reside
+    Type: String
+    AllowedPattern: '\S+'
+    ConstraintDescription: Must be a valid S3 Bucket Name
+  DBName:
+    Description: Name of the Database
+    Type: String
+    Default: wordpressdb
+    MinLength: 1
+    MaxLength: 64
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 64 letters or numbers
+  DBUser:
+    Description: Database admin account name
+    Type: String
+    Default: wordpressuser
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 16 letters or numbers
+  DBPass:
+    Description: Database admin password
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+
+Mappings:
+  AWSRegionArch2AMI:
+    eu-west-1: { image: ami-ebd02392 }
+
+Resources:
+  Wordpress:
+    Type: AWS::ElasticBeanstalk::Application
+    Properties:
+      Description: Wordpress for use with a PHP Solution Stack
+
+  WordpressVersion1:
+    Type: AWS::ElasticBeanstalk::ApplicationVersion
+    Properties:
+      ApplicationName: !Ref Wordpress
+      Description: First Version of the Wordpress Application
+      SourceBundle:
+        S3Bucket: !Ref ProjectBucket
+        S3Key: wordpress-v1.zip
