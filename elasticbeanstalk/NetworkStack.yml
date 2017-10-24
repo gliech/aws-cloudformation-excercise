@@ -1,0 +1,135 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Elastic Beanstalk Teststack
+
+Parameters:
+  ProjectBucket:
+    Description: The name of a S3 Bucket where the files for this project reside
+    Type: String
+    AllowedPattern: '\S+'
+    ConstraintDescription: Must be a valid S3 Bucket Name
+
+Resources:
+  WPNetwork:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+
+  WPSubnetPrivate1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref WPNetwork
+  WPSubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref WPNetwork
+  WPSubnetPublic1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+  WPSubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.4.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref WPNetwork
+
+  WPInternetGateway:
+    Type: AWS::EC2::InternetGateway
+  WPInternetGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref WPNetwork
+      InternetGatewayId: !Ref WPInternetGateway
+
+  WPElasticIPNatGateway1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  WPNatGateway1:
+    Type: AWS::EC2::NatGateway
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt WPElasticIPNatGateway1.AllocationId
+      SubnetId: !Ref WPSubnetPublic1
+
+  WPElasticIPNatGateway2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  WPNatGateway2:
+    Type: AWS::EC2::NatGateway
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt WPElasticIPNatGateway2.AllocationId
+      SubnetId: !Ref WPSubnetPublic2
+
+  WPRoutetablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePublic:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref WPInternetGateway
+  WPRoutetablePublicAttach1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPublic1
+      RouteTableId: !Ref WPRoutetablePublic
+  WPRoutetablePublicAttach2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPublic2
+      RouteTableId: !Ref WPRoutetablePublic
+
+  WPRoutetablePrivate1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePrivate1:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePrivate1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref WPNatGateway1
+  WPRoutetablePrivate1Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPrivate1
+      RouteTableId: !Ref WPRoutetablePrivate1
+
+  WPRoutetablePrivate2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref WPNetwork
+  WPDefaultRoutePrivate2:
+    Type: AWS::EC2::Route
+    DependsOn: WPInternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref WPRoutetablePrivate2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref WPNatGateway2
+  WPRoutetablePrivate2Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref WPSubnetPrivate2
+      RouteTableId: !Ref WPRoutetablePrivate2
+

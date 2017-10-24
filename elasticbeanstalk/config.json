@@ -1,0 +1,6 @@
+[
+    {
+        "ParameterKey": "ProjectBucket",
+        "ParameterValue": "cbc-azubi-eb"
+    }
+]

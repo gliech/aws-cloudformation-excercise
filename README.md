@@ -21,3 +21,6 @@ external dependencies to run:
     - **SubStack-AnsibleServer.yml** The template for the nested stack
     - **GitAccess.sec** An SSH private key used to fetch the contents of the git repository
     - **AnsibleMgmt.sec** An SSH private key that Ansible can use to connect to the other hosts in the stack
+
+### elasticbeanstalk
+WIP
