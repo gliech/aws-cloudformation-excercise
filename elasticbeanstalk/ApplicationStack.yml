@@ -2,17 +2,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack that contains a single elastic beanstalk application
 
-Parameters:
-  ProjectBucket:
-    Description: The name of a S3 Bucket where the files for this project reside
-    Type: String
-    AllowedPattern: '\S+'
-    ConstraintDescription: Must be a valid S3 Bucket Name
-
-Mappings:
-  AWSRegionArch2AMI:
-    eu-west-1: { image: ami-ebd02392 }
-
 Resources:
   Wordpress:
     Type: AWS::ElasticBeanstalk::Application
