@@ -5,7 +5,7 @@
     },
     {
         "ParameterKey": "ApplicationVersion",
-        "ParameterValue": "wordpress-v4"
+        "ParameterValue": "wordpress-v8"
     },
     {
         "ParameterKey": "SolutionStack",
