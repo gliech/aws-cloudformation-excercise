@@ -1,6 +1,14 @@
 [
     {
-        "ParameterKey": "ProjectBucket",
-        "ParameterValue": "cbc-azubi-eb"
+        "ParameterKey": "Application",
+        "ParameterValue": "WordpressApplicationStack-Wordpress-1OYRQXNTPFHR1"
+    },
+    {
+        "ParameterKey": "ApplicationVersion",
+        "ParameterValue": "wordpress-v4"
+    },
+    {
+        "ParameterKey": "SolutionStack",
+        "ParameterValue": "64bit Amazon Linux 2017.03 v2.5.0 running PHP 7.1"
     }
 ]

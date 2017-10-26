@@ -3,11 +3,15 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Elastic Beanstalk Teststack
 
 Parameters:
-  ProjectBucket:
-    Description: The name of a S3 Bucket where the files for this project reside
+  Application:
+    Description: Name of the Elastic Beanstalk Application, this Environment will reside in
     Type: String
-    AllowedPattern: '\S+'
-    ConstraintDescription: Must be a valid S3 Bucket Name
+  ApplicationVersion:
+    Description: Application Version that will be deployed into the environment
+    Type: String
+  SolutionStack:
+    Description: Platform used on the Environment
+    Type: String
 
 Resources:
   Network:
@@ -133,10 +137,32 @@ Resources:
       SubnetId: !Ref SubnetPrivate2
       RouteTableId: !Ref RoutetablePrivate2
 
-  WordpressStack:
-    Type: AWS::CloudFormation::Stack
+  EBEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
     Properties:
-      TemplateURL: !Sub https://s3.amazonaws.com/${ProjectBucket}/WordpressStack.yml
-      Parameters:
-        ProjectBucket: !Ref ProjectBucket 
-        DBPass: SecretPassword 
+      ApplicationName: !Ref Application
+      EnvironmentName: Test
+      SolutionStackName: !Ref SolutionStack
+      VersionLabel: !Ref ApplicationVersion
+      OptionSettings:
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref Network
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetPrivate1
+              - !Ref SubnetPrivate2
+        - Namespace: aws:ec2:vpc
+          OptionName: ELBSubnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetPublic1
+              - !Ref SubnetPublic2
+        - Namespace: aws:ec2:vpc
+          OptionName: DBSubnets
+          Value: !Join
+            - ','
+            - - !Ref SubnetPrivate1
+              - !Ref SubnetPrivate2
