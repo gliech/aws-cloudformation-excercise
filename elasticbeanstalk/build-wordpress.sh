@@ -27,7 +27,9 @@ fi
 {
     tar -xvzf ./latest.tar.gz wordpress &&
     cp -r ./wordpress.configs/* ./wordpress &&
-    zip wordpress-${1}.zip -r wordpress/* wordpress/.[^.]* &&
+    cd ./wordpress &&
+    zip ../wordpress-${1}.zip -r ./* ./.[^.]* &&
+    cd .. &&
     rm -r ./wordpress
 } || {
     if [[ -d ./wordpress ]]
