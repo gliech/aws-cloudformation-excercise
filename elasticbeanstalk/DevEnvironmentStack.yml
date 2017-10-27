@@ -25,8 +25,14 @@ Resources:
       CidrBlock: 192.168.0.0/24
       AvailabilityZone: !Select [ 0, !GetAZs ]
       MapPublicIpOnLaunch: false
+      VpcId: !Ref Networ
+  DBHelperSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
       VpcId: !Ref Network
-
 
   InternetGateway:
     Type: AWS::EC2::InternetGateway
@@ -61,19 +67,29 @@ Resources:
       Engine: mariadb
       EngineVersion: 10.1.23
       PubliclyAccessible: false
-      MultiAZ: false
-      AvailabilityZone: !Select [ 0, !GetAZs ]
-      DBSecurityGroups:
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
         - !Ref DBSecurityGroup
       DBName: ebdb
       MasterUsername: root
       MasterUserPassword: SecretPassword
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: All Subnets (mandatory descripition, wow)
+      SubnetIds:
+        - !Ref Subnet
+        - !Ref DBHelperSubnet
   DBSecurityGroup:
-    Type: AWS::RDS::DBSecurityGroup
+    Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Allow SQL access from webservers
-      DBSecurityGroupIngress:
-        EC2SecurityGroupId: !Ref DBAccessSecurityGroup
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref DBAccessSecurityGroup
   DBAccessSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
