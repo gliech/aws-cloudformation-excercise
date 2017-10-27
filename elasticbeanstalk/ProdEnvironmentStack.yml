@@ -11,129 +11,6 @@ Parameters:
     Type: String
 
 Resources:
-  Network:
-    Type: AWS::EC2::VPC
-    Properties:
-      CidrBlock: 192.168.0.0/16
-      EnableDnsSupport: true
-      EnableDnsHostnames: true
-      InstanceTenancy: default
-
-  SubnetPrivate1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: 192.168.1.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs ]
-      MapPublicIpOnLaunch: false
-      VpcId: !Ref Network
-  SubnetPrivate2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: 192.168.2.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs ]
-      MapPublicIpOnLaunch: false
-      VpcId: !Ref Network
-  SubnetPublic1:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: 192.168.3.0/24
-      AvailabilityZone: !Select [ 0, !GetAZs ]
-      MapPublicIpOnLaunch: true
-      VpcId: !Ref Network
-  SubnetPublic2:
-    Type: AWS::EC2::Subnet
-    Properties:
-      CidrBlock: 192.168.4.0/24
-      AvailabilityZone: !Select [ 1, !GetAZs ]
-      MapPublicIpOnLaunch: true
-      VpcId: !Ref Network
-
-  InternetGateway:
-    Type: AWS::EC2::InternetGateway
-  InternetGatewayAttach:
-    Type: AWS::EC2::VPCGatewayAttachment
-    Properties:
-      VpcId: !Ref Network
-      InternetGatewayId: !Ref InternetGateway
-
-  ElasticIPNatGateway1:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-  NatGateway1:
-    Type: AWS::EC2::NatGateway
-    DependsOn: InternetGatewayAttach
-    Properties:
-      AllocationId: !GetAtt ElasticIPNatGateway1.AllocationId
-      SubnetId: !Ref SubnetPublic1
-
-  ElasticIPNatGateway2:
-    Type: AWS::EC2::EIP
-    Properties:
-      Domain: vpc
-  NatGateway2:
-    Type: AWS::EC2::NatGateway
-    DependsOn: InternetGatewayAttach
-    Properties:
-      AllocationId: !GetAtt ElasticIPNatGateway2.AllocationId
-      SubnetId: !Ref SubnetPublic2
-
-  RoutetablePublic:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Network
-  DefaultRoutePublic:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttach
-    Properties:
-      RouteTableId: !Ref RoutetablePublic
-      DestinationCidrBlock: 0.0.0.0/0
-      GatewayId: !Ref InternetGateway
-  RoutetablePublicAttach1:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref SubnetPublic1
-      RouteTableId: !Ref RoutetablePublic
-  RoutetablePublicAttach2:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref SubnetPublic2
-      RouteTableId: !Ref RoutetablePublic
-
-  RoutetablePrivate1:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Network
-  DefaultRoutePrivate1:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttach
-    Properties:
-      RouteTableId: !Ref RoutetablePrivate1
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway1
-  RoutetablePrivate1Attach:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref SubnetPrivate1
-      RouteTableId: !Ref RoutetablePrivate1
-
-  RoutetablePrivate2:
-    Type: AWS::EC2::RouteTable
-    Properties:
-      VpcId: !Ref Network
-  DefaultRoutePrivate2:
-    Type: AWS::EC2::Route
-    DependsOn: InternetGatewayAttach
-    Properties:
-      RouteTableId: !Ref RoutetablePrivate2
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGateway2
-  RoutetablePrivate2Attach:
-    Type: AWS::EC2::SubnetRouteTableAssociation
-    Properties:
-      SubnetId: !Ref SubnetPrivate2
-      RouteTableId: !Ref RoutetablePrivate2
-
   EBEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
@@ -159,10 +36,27 @@ Resources:
             - ','
             - - !Ref SubnetPublic1
               - !Ref SubnetPublic2
-        - Namespace: aws:ec2:vpc
-          OptionName: DBSubnets
-          Value: !Join
-            - ','
-            - - !Ref SubnetPrivate1
-              - !Ref SubnetPrivate2
-
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref DBAccessSecurityGroup
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: EC2KeyName
+          Value: !Ref SSHKey
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SSHSourceRestriction
+          Value: !Sub tcp, 22, 22, ${AllowedRange}
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_HOSTNAME
+          Value: !GetAtt DataBase.Endpoint.Address
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_PORT
+          Value: !GetAtt DataBase.Endpoint.Port
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_DB_NAME
+          Value: ebdb
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_USERNAME
+          Value: !Ref DBUser
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_PASSWORD
+          Value: !Ref DBPass
