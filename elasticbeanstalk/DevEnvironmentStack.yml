@@ -1,0 +1,72 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Elastic Beanstalk Teststack
+
+Parameters:
+  ApplicationStack:
+    Description: Name of the Elastic Beanstalk Application, this Environment will reside in
+    Type: String
+  ApplicationVersion:
+    Description: Application Version that will be deployed into the environment
+    Type: String
+
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+
+  Subnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.0.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Network
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref InternetGateway
+
+
+  RoutetablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  DefaultRoutePublic:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref RoutetablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  RoutetablePublicAttach1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref Subnet
+      RouteTableId: !Ref RoutetablePublic
+
+  EBEnvironment:
+    Type: AWS::ElasticBeanstalk::Environment
+    Properties:
+      ApplicationName:
+        Fn::ImportValue: !Sub ${ApplicationStack}-Application
+      TemplateName:
+        Fn::ImportValue: !Sub ${ApplicationStack}-DevTemplate
+      EnvironmentName: !Sub ${AWS::StackName}
+      VersionLabel: !Ref ApplicationVersion
+      OptionSettings:
+        - Namespace: aws:ec2:vpc
+          OptionName: VPCId
+          Value: !Ref Network
+        - Namespace: aws:ec2:vpc
+          OptionName: Subnets
+          Value: !Ref Subnet
+
