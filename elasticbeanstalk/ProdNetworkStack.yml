@@ -1,0 +1,181 @@
+---
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Elastic Beanstalk Teststack
+
+Parameters:
+  DBUser:
+    Description: Database admin account name
+    Type: String
+    Default: wordpressuser
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 16 letters or numbers
+  DBPass:
+    Description: Database admin password
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
+
+Resources:
+  Network:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 192.168.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      InstanceTenancy: default
+
+  SubnetPrivate1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.1.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Network
+  SubnetPrivate2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.2.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Network
+  SubnetPublic1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.3.0/24
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Network
+  SubnetPublic2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: 192.168.4.0/24
+      AvailabilityZone: !Select [ 1, !GetAZs ]
+      MapPublicIpOnLaunch: true
+      VpcId: !Ref Network
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+  InternetGatewayAttach:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Network
+      InternetGatewayId: !Ref InternetGateway
+
+  ElasticIPNatGateway1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway1:
+    Type: AWS::EC2::NatGateway
+    DependsOn: InternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt ElasticIPNatGateway1.AllocationId
+      SubnetId: !Ref SubnetPublic1
+
+  ElasticIPNatGateway2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+  NatGateway2:
+    Type: AWS::EC2::NatGateway
+    DependsOn: InternetGatewayAttach
+    Properties:
+      AllocationId: !GetAtt ElasticIPNatGateway2.AllocationId
+      SubnetId: !Ref SubnetPublic2
+
+  RoutetablePublic:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  DefaultRoutePublic:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref RoutetablePublic
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+  RoutetablePublicAttach1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublic1
+      RouteTableId: !Ref RoutetablePublic
+  RoutetablePublicAttach2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPublic2
+      RouteTableId: !Ref RoutetablePublic
+
+  RoutetablePrivate1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  DefaultRoutePrivate1:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref RoutetablePrivate1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway1
+  RoutetablePrivate1Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivate1
+      RouteTableId: !Ref RoutetablePrivate1
+
+  RoutetablePrivate2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Network
+  DefaultRoutePrivate2:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttach
+    Properties:
+      RouteTableId: !Ref RoutetablePrivate2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway2
+  RoutetablePrivate2Attach:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref SubnetPrivate2
+      RouteTableId: !Ref RoutetablePrivate2
+
+  DataBase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 5
+      DBInstanceClass: db.t2.micro
+      Engine: mariadb
+      EngineVersion: 10.1.23
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - !Ref DBSecurityGroup
+      DBName: ebdb
+      MasterUsername: !Ref DBUser
+      MasterUserPassword: !Ref DBPass
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: All Subnets (mandatory descripition, wow)
+      SubnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
+  DBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SQL access from webservers
+      VpcId: !Ref Network
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref DBAccessSecurityGroup
+  DBAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SQL access from webservers
+      VpcId: !Ref Network
+
