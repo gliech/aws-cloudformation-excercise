@@ -3,8 +3,49 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Stack that contains a single elastic beanstalk application
 
 Resources:
-  Wordpress:
+  Application:
     Type: AWS::ElasticBeanstalk::Application
     Properties:
-      Description: Wordpress for use with a PHP Solution Stack
+      Description: A beanstalk application spawned from a cloudformation stack
 
+  ProdTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref Application
+      Description: A template for making production environments
+      SolutionStackName: 64bit Amazon Linux 2017.03 v2.5.0 running PHP 7.0
+      OptionSettings:
+        - Namespace: aws:autoscaling:asg
+          OptionName: MinSize
+          Value: 1
+        - Namespace: aws:autoscaling:asg
+          OptionName: MaxSize
+          Value: 3
+
+  TestTemplate:
+    Type: AWS::ElasticBeanstalk::ConfigurationTemplate
+    Properties:
+      ApplicationName: !Ref Application
+      Description: A template for making testing environments
+      SolutionStackName: 64bit Amazon Linux 2017.03 v2.5.0 running PHP 7.1
+      OptionSettings:
+        - Namespace: aws:elasticbeanstalk:environment
+          OptionName: EnvironmentType
+          Value: SingleInstance
+
+Outputs:
+  ProdTemplateID:
+    Description: Logical ID of the template for making production environments in this application
+    Value: !Ref ProdTemplate
+    Export:
+      Name: !Sub ${AWS::StackName}-ProdTemplate
+  TestTemplateID:
+    Description: Logical ID of the template for making testing environments in this application
+    Value: !Ref TestTemplate
+    Export:
+      Name: !Sub ${AWS::StackName}-TestTemplate
+  ApplicationID:
+    Description: Logical ID of the application created with this stack
+    Value: !Ref Application
+    Export:
+      Name: !Sub ${AWS::StackName}-Application

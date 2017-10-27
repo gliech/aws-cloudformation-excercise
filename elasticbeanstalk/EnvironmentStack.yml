@@ -3,14 +3,11 @@ AWSTemplateFormatVersion: '2010-09-09'
 Description: Elastic Beanstalk Teststack
 
 Parameters:
-  Application:
+  ApplicationStack:
     Description: Name of the Elastic Beanstalk Application, this Environment will reside in
     Type: String
   ApplicationVersion:
     Description: Application Version that will be deployed into the environment
-    Type: String
-  SolutionStack:
-    Description: Platform used on the Environment
     Type: String
 
 Resources:
@@ -140,9 +137,11 @@ Resources:
   EBEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
     Properties:
-      ApplicationName: !Ref Application
-      EnvironmentName: Test
-      SolutionStackName: !Ref SolutionStack
+      ApplicationName:
+        Fn::ImportValue: !Sub ${ApplicationStack}-Application
+      TemplateName:
+        Fn::ImportValue: !Sub ${ApplicationStack}-TestTemplate
+      EnvironmentName: !Sub ${AWS::StackName}
       VersionLabel: !Ref ApplicationVersion
       OptionSettings:
         - Namespace: aws:ec2:vpc
@@ -166,3 +165,4 @@ Resources:
             - ','
             - - !Ref SubnetPrivate1
               - !Ref SubnetPrivate2
+
