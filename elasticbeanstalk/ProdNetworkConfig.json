@@ -1,0 +1,10 @@
+[
+    {
+        "ParameterKey": "DBUser",
+        "ParameterValue": "root"
+    },
+    {
+        "ParameterKey": "DBPass",
+        "ParameterValue": "SecretPassword"
+    }
+]
