@@ -27,6 +27,7 @@ Resources:
       MapPublicIpOnLaunch: false
       VpcId: !Ref Network
 
+
   InternetGateway:
     Type: AWS::EC2::InternetGateway
   InternetGatewayAttach:
@@ -34,7 +35,6 @@ Resources:
     Properties:
       VpcId: !Ref Network
       InternetGatewayId: !Ref InternetGateway
-
 
   RoutetablePublic:
     Type: AWS::EC2::RouteTable
@@ -47,11 +47,38 @@ Resources:
       RouteTableId: !Ref RoutetablePublic
       DestinationCidrBlock: 0.0.0.0/0
       GatewayId: !Ref InternetGateway
-  RoutetablePublicAttach1:
+  RoutetablePublicAttach:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref Subnet
       RouteTableId: !Ref RoutetablePublic
+
+  DataBase:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      AllocatedStorage: 5
+      DBInstanceClass: db.t2.micro
+      Engine: mariadb
+      EngineVersion: 10.1.23
+      PubliclyAccessible: false
+      MultiAZ: false
+      AvailabilityZone: !Select [ 0, !GetAZs ]
+      DBSecurityGroups:
+        - !Ref DBSecurityGroup
+      DBName: ebdb
+      MasterUsername: root
+      MasterUserPassword: SecretPassword
+  DBSecurityGroup:
+    Type: AWS::RDS::DBSecurityGroup
+    Properties:
+      GroupDescription: Allow SQL access from webservers
+      DBSecurityGroupIngress:
+        EC2SecurityGroupId: !Ref DBAccessSecurityGroup
+  DBAccessSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow SQL access from webservers
+      VpcId: !Ref Network
 
   EBEnvironment:
     Type: AWS::ElasticBeanstalk::Environment
@@ -69,4 +96,21 @@ Resources:
         - Namespace: aws:ec2:vpc
           OptionName: Subnets
           Value: !Ref Subnet
-
+        - Namespace: aws:autoscaling:launchconfiguration
+          OptionName: SecurityGroups
+          Value: !Ref DBAccessSecurityGroup
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_HOSTNAME
+          Value: !GetAtt DataBase.Endpoint.Address
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_PORT
+          Value: !GetAtt DataBase.Endpoint.Port
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_DB_NAME
+          Value: ebdb
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_USERNAME
+          Value: root
+        - Namespace: aws:elasticbeanstalk:application:environment
+          OptionName: RDS_PASSWORD
+          Value: SecretPassword

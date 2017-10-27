@@ -22,11 +22,11 @@ Resources:
           OptionName: MaxSize
           Value: 3
 
-  TestTemplate:
+  DevTemplate:
     Type: AWS::ElasticBeanstalk::ConfigurationTemplate
     Properties:
       ApplicationName: !Ref Application
-      Description: A template for making testing environments
+      Description: A template for making development environments
       SolutionStackName: 64bit Amazon Linux 2017.03 v2.5.0 running PHP 7.1
       OptionSettings:
         - Namespace: aws:elasticbeanstalk:environment
@@ -39,11 +39,11 @@ Outputs:
     Value: !Ref ProdTemplate
     Export:
       Name: !Sub ${AWS::StackName}-ProdTemplate
-  TestTemplateID:
-    Description: Logical ID of the template for making testing environments in this application
-    Value: !Ref TestTemplate
+  DevTemplateID:
+    Description: Logical ID of the template for making development environments in this application
+    Value: !Ref DevTemplate
     Export:
-      Name: !Sub ${AWS::StackName}-TestTemplate
+      Name: !Sub ${AWS::StackName}-DevTemplate
   ApplicationID:
     Description: Logical ID of the application created with this stack
     Value: !Ref Application
