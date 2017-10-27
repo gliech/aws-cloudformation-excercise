@@ -6,5 +6,21 @@
     {
         "ParameterKey": "ApplicationVersion",
         "ParameterValue": "wordpress-v9"
+    },
+    {
+        "ParameterKey": "AllowedRange",
+        "ParameterValue": "193.16.160.0/21"
+    },
+    {
+        "ParameterKey": "SSHKey",
+        "ParameterValue": "bueckendorf-cbc-desktop"
+    },
+    {
+        "ParameterKey": "DBUser",
+        "ParameterValue": "root"
+    },
+    {
+        "ParameterKey": "DBPass",
+        "ParameterValue": "SecretPassword"
     }
 ]
