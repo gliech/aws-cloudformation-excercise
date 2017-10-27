@@ -161,8 +161,8 @@ Resources:
     Properties:
       DBSubnetGroupDescription: All Subnets (mandatory descripition, wow)
       SubnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
+        - !Ref SubnetPrivate1
+        - !Ref SubnetPrivate2
   DBSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -187,15 +187,17 @@ Outputs:
       Name: !Sub ${AWS::StackName}-VpcId
   PrivateSubnets:
     Description: List of private subnet created by this template
-    Value:
-      - !Ref PrivateSubnet1
-      - !Ref PrivateSubnet2
+    Value: !Join
+      - ','
+      - - !Ref SubnetPrivate1
+        - !Ref SubnetPrivate2
     Export:
       Name: !Sub ${AWS::StackName}-PrivateSubnets
   PublicSubnets:
     Description: List of private subnet created by this template
-    Value:
-      - !Ref PublicSubnet1
-      - !Ref PublicSubnet2
+    Value: !Join
+      - ','
+      - - !Ref SubnetPublic1
+        - !Ref SubnetPublic2
     Export:
       Name: !Sub ${AWS::StackName}-PublicSubnets
