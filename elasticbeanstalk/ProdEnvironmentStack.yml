@@ -140,7 +140,7 @@ Resources:
       ApplicationName:
         Fn::ImportValue: !Sub ${ApplicationStack}-Application
       TemplateName:
-        Fn::ImportValue: !Sub ${ApplicationStack}-TestTemplate
+        Fn::ImportValue: !Sub ${ApplicationStack}-ProdTemplate
       EnvironmentName: !Sub ${AWS::StackName}
       VersionLabel: !Ref ApplicationVersion
       OptionSettings:
