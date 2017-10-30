@@ -5,7 +5,7 @@
     },
     {
         "ParameterKey": "ApplicationVersion",
-        "ParameterValue": "wordpress-v9"
+        "ParameterValue": "wordpress-v10"
     },
     {
         "ParameterKey": "NetworkStack",
