@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Elastic Beanstalk Teststack
+Description: Stack that contains the the VPC and database resources for an elastic beanstalk environment
 
 Parameters:
   DBUser:
@@ -142,7 +142,7 @@ Resources:
       SubnetId: !Ref SubnetPrivate2
       RouteTableId: !Ref RoutetablePrivate2
 
-  DataBase:
+  Database:
     Type: AWS::RDS::DBInstance
     Properties:
       AllocatedStorage: 5
@@ -201,3 +201,15 @@ Outputs:
         - !Ref SubnetPublic2
     Export:
       Name: !Sub ${AWS::StackName}-PublicSubnets
+  DatabaseAddress:
+    Value: !GetAtt Database.Endpoint.Address
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabaseAddress
+  DatabasePort:
+    Value: !GetAtt Database.Endpoint.Port
+    Export:
+      Name: !Sub ${AWS::StackName}-DatabasePort
+  DBAccessSecurityGroup:
+    Value: !Ref DBAccessSecurityGroup
+    Export:
+      Name: !Sub ${AWS::StackName}-DBAccessSecurityGroup

@@ -1,0 +1,30 @@
+[
+    {
+        "ParameterKey": "ApplicationStack",
+        "ParameterValue": "WordpressApplicationStack"
+    },
+    {
+        "ParameterKey": "ApplicationVersion",
+        "ParameterValue": "wordpress-v9"
+    },
+    {
+        "ParameterKey": "NetworkStack",
+        "ParameterValue": "WordpressProdNetwork"
+    }, 
+    {
+        "ParameterKey": "SSHKey",
+        "ParameterValue": "bueckendorf-cbc-desktop"
+    },
+    {
+        "ParameterKey": "AllowedRange",
+        "ParameterValue": "193.16.160.0/21"
+    },
+    {
+        "ParameterKey": "DBUser",
+        "ParameterValue": "root"
+    },
+    {
+        "ParameterKey": "DBPass",
+        "ParameterValue": "SecretPassword"
+    }
+]

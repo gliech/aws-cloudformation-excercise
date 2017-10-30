@@ -1,6 +1,6 @@
 ---
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Elastic Beanstalk Teststack
+Description: Stack that contains an elastic beanstalk environment which is deployed using an external network stack
 
 Parameters:
   ApplicationStack:
@@ -9,6 +9,32 @@ Parameters:
   ApplicationVersion:
     Description: Application Version that will be deployed into the environment
     Type: String
+  NetworkStack:
+    Description: Name of the Network, this Environment will be spawned into
+    Type: String
+  SSHKey:
+    Description: A predefined EC2 Key Pair that can be used to access instances on this stack.
+    Type: AWS::EC2::KeyPair::KeyName
+  AllowedRange:
+    Description: A range of IP addresses that is allowed to SSH into the instances on this stack.
+    Type: String
+    Default: 0.0.0.0/0
+    AllowedPattern: '(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})'
+    ConstraintDescription: Must be a valid IP CIDR range of the form x.x.x.x/x.
+  DBUser:
+    Description: Database admin account name
+    Type: String
+    Default: wordpressuser
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '[a-zA-Z0-9]+'
+    ConstraintDescription: Must contain 1 to 16 letters or numbers
+  DBPass:
+    Description: Database admin password
+    Type: String
+    NoEcho: true
+    MinLength: 8
+    MaxLength: 41
 
 Resources:
   EBEnvironment:
@@ -23,40 +49,50 @@ Resources:
       OptionSettings:
         - Namespace: aws:ec2:vpc
           OptionName: VPCId
-          Value: !Ref Network
+          Value: 
+            Fn::ImportValue: !Sub ${NetworkStack}-VpcId
+
         - Namespace: aws:ec2:vpc
           OptionName: Subnets
-          Value: !Join
-            - ','
-            - - !Ref SubnetPrivate1
-              - !Ref SubnetPrivate2
+          Value:
+            Fn::ImportValue: !Sub ${NetworkStack}-PrivateSubnets
+
         - Namespace: aws:ec2:vpc
           OptionName: ELBSubnets
-          Value: !Join
-            - ','
-            - - !Ref SubnetPublic1
-              - !Ref SubnetPublic2
+          Value:
+            Fn::ImportValue: !Sub ${NetworkStack}-PublicSubnets
+
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SecurityGroups
-          Value: !Ref DBAccessSecurityGroup
+          Value:
+            Fn::ImportValue: !Sub ${NetworkStack}-DBAccessSecurityGroup
+
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: EC2KeyName
           Value: !Ref SSHKey
+
         - Namespace: aws:autoscaling:launchconfiguration
           OptionName: SSHSourceRestriction
           Value: !Sub tcp, 22, 22, ${AllowedRange}
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RDS_HOSTNAME
-          Value: !GetAtt DataBase.Endpoint.Address
+          Value: 
+            Fn::ImportValue: !Sub ${NetworkStack}-DatabaseAddress
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RDS_PORT
-          Value: !GetAtt DataBase.Endpoint.Port
+          Value: 
+            Fn::ImportValue: !Sub ${NetworkStack}-DatabasePort
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RDS_DB_NAME
           Value: ebdb
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RDS_USERNAME
           Value: !Ref DBUser
+
         - Namespace: aws:elasticbeanstalk:application:environment
           OptionName: RDS_PASSWORD
           Value: !Ref DBPass
