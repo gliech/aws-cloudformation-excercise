@@ -17,3 +17,8 @@ am ende die eb-cli erwähnen
  - zeigen welche befehle es bräuchte eine neue environment auszurollen
  - gut wenn man entwicklern große kontrolle gibt
  - nicht gut für production environments die man vllt zusammen mit einem zugehörigen netzwerkstack deployen möchte
+
+Applications
+- Container für Application Versions
+
+http://elasticbeanstalk-env-resources-eu-west-1.s3.amazonaws.com/eb_snippets/rds/rds.json
