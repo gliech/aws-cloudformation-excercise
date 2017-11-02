@@ -22,3 +22,5 @@ Applications
 - Container für Application Versions
 
 http://elasticbeanstalk-env-resources-eu-west-1.s3.amazonaws.com/eb_snippets/rds/rds.json
+
+extra fn::
