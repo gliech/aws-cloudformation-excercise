@@ -28,5 +28,6 @@ The [build-wordpress.sh](elasticbeanstalk/build-wordpress.sh) script downloads
 the latest wordpress release and packages it together with the contents of 
 [wordpress.config/](elasticbeanstalk/wordpress.config/) into a .zip
 archive, that can be used as Source Bundle for Beanstalk Application Versions.  
-For more information on the Cloudformation Stacks, refer to my
-[presentation](elasticbeanstalk/presentation/beanstalk-slides.pdf) (German)
+For more information on the use of the 4 Cloudformation Stacks, refer to my
+[presentation](elasticbeanstalk/presentation/beanstalk-slides.pdf) on Elastic
+Beanstalk (German).
