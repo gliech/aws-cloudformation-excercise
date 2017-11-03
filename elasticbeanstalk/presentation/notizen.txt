@@ -1,26 +1,37 @@
-sind S3 bucket urls die in application version definitions angegeben werden der ständige speicherort der zip files, und werden diese auch aus diesem s3 bucket gelöscht wenn die lifecycle policy das verlangt, oder werden sourcebundles immer in den applikationseigenen bucket geladen?
+ X Environment:            SQS, Loadbalancer (classic, application, network)
+
+-> Configuration Options:  - Am insteressantesten für uns
+                           - Schon erwähnt bei Version und Environment
+                           - Was lässt sich konfigurieren?
+
+ X Configuration Options:  SingleInstance interessant, weil mehr als Variablen
+                           geändert werden müssen
+
+ X .ebextensions:          - CloudFormation::Init Meta Type
+                           - Resources gut für Bastion Host, Ansible Server,
+                             nicht Datenbank
+
+ X Configuration Template: Vererbung bei der Definition in Cloudformation eher
+                           unerwünscht
+
+-> Down the Rabbit Hole:   Ziel ist, das Ergebnis der EB-CLI in Cloudformation
+                           zu reproduzieren
+
+ X Down the Rabbit Hole: http://elasticbeanstalk-env-resources-eu-west-1.s3.amazonaws.com/eb_snippets/rds/rds.json
+                         http://elasticbeanstalk-env-resources-eu-west-1.s3.amazonaws.com/eb_snippets/single_instance.yaml
 
 
-Wie dumm sind die recommended values der configuration options?
-Grafik einbauen, die den configuration option precedence zeigt, linear und dann aufspalten in console, cli, und andere, mit recommended values direkt dadrunter gehängt
+Fazit
 
+Jetzt:   - mächtiges Werkzeug für Entwickler
+         - schränkt Administratoren & Systemarchitekten ein:
+            - erweiterbar, aber nicht umschreibbar
+            - klare Linie anderer Amazon Cloud Services fehlt
+Zukunft: - interessant, wenn wir "Templates" selbst schreiben könnten
+            - wie custom platforms für das Netzwerk
+            - Entwickler könnten durch die so geschaffene Schnittstelle freier
+              mit von uns geschriebenen Netzwerkarchitekturen umgehen
+         - unwahrscheinlich, dass das bald, wenn überhaupt eintrifft
+            - "Templates" werden von Amazon selbst uneinheitlich eingesetzt
+            - hohes Zerstörungspotenzial
 
-command und container_command unterschied
-saved configurations und configuration templates sind das gleiche
-solution stack und platform sind das gleiche?
-unbeding configuration option precedence erwähnen
-erwähnen, dass das system so gedacht ist, dass applikationen speziell für die anwendung in  beanstalk geschrieben werden sollen
- - SQS worker
- - beste art environment spezifische konfiguration einzubringen ist bei wordpress $_SERVER
-
-am ende die eb-cli erwähnen
- - zeigen welche befehle es bräuchte eine neue environment auszurollen
- - gut wenn man entwicklern große kontrolle gibt
- - nicht gut für production environments die man vllt zusammen mit einem zugehörigen netzwerkstack deployen möchte
-
-Applications
-- Container für Application Versions
-
-http://elasticbeanstalk-env-resources-eu-west-1.s3.amazonaws.com/eb_snippets/rds/rds.json
-
-extra fn::
