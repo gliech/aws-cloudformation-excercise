@@ -23,11 +23,10 @@ external dependencies to run:
     - **AnsibleMgmt.sec** An SSH private key that Ansible can use to connect to the other hosts in the stack
 
 ### elasticbeanstalk
-My attempt at integrating Elastic Beanstalk with Cloudformation.
-
-The **build-wordpress.sh** script downloads the latest wordpress release and
-packages it together with the contents of **wordpress.config/** into a .zip
-archive, that can be used as Source Bundle for Beanstalk Application Versions.
-
-For more information about the 4 Cloudformation Stacks, see
-**presentation/beanstalk-slides.pdf**
+My attempt at integrating Elastic Beanstalk with Cloudformation.  
+The [build-wordpress.sh](elasticbeanstalk/build-wordpress.sh) script downloads
+the latest wordpress release and packages it together with the contents of 
+[wordpress.config/](elasticbeanstalk/wordpress.config/) into a .zip
+archive, that can be used as Source Bundle for Beanstalk Application Versions.  
+For more information on the Cloudformation Stacks, refer to my
+[presentation](elasticbeanstalk/presentation/beanstalk-slides.pdf) (German)
